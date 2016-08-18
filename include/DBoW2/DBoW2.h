@@ -19,7 +19,7 @@
  * Check my website to obtain updates: http://doriangalvez.com
  *
  * \section requirements Requirements
- * This library requires the DUtils, DUtilsCV, DVision and OpenCV libraries,
+ * This library requires the OpenCV libraries,
  * as well as the boost::dynamic_bitset class.
  *
  * \section citation Citation

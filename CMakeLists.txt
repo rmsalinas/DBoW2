@@ -4,6 +4,7 @@ include(ExternalProject)
 
 option(BUILD_DBoW2   "Build DBoW2"            ON)
 option(BUILD_Demo    "Build demo application" ON)
+option(DBoW2_USE_OPENCV_NONFREE "Build DBoW2 with OpenCV non free support" OFF)
 
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
   set(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build." FORCE)
@@ -39,15 +40,13 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 find_package(Boost REQUIRED)
 include_directories(${Boost_INCLUDE_DIR})
 
-
-
 add_library(${PROJECT_NAME} SHARED ${SRCS})
 include_directories(include/DBoW2/)
-target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS} ${DLib_LIBS})
+target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS})
 
 if(BUILD_Demo)
   add_executable(demo demo/demo.cpp)
-  target_link_libraries(demo ${PROJECT_NAME} ${OpenCV_LIBS} ${DLib_LIBS})
+  target_link_libraries(demo ${PROJECT_NAME} ${OpenCV_LIBS})
   file(COPY demo/images DESTINATION ${CMAKE_BINARY_DIR}/)
 endif(BUILD_Demo)
 

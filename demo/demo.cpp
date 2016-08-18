@@ -16,22 +16,24 @@
 // OpenCV
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
+#ifdef DBoW2_USE_OPENCV_NONFREE
 #include <opencv2/xfeatures2d/nonfree.hpp>
-
+#else
+#include <opencv2/features2d/features2d.hpp>
+#endif
 
 using namespace DBoW2;
 using namespace std;
 
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 void loadFeatures(vector<vector<vector<float> > > &features);
-void changeStructure(const vector<float> &plain, vector<vector<float> > &out,
-  int L);
+void changeStructure(const cv::Mat & plain, vector<vector<float> > &out);
 void testVocCreation(const vector<vector<vector<float> > > &features);
 void testDatabase(const vector<vector<vector<float> > > &features);
 
 
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 // number of training images
 const int NIMAGES = 4;
@@ -39,7 +41,7 @@ const int NIMAGES = 4;
 // extended surf gives 128-dimensional vectors
 const bool EXTENDED_SURF = false;
 
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 void wait()
 {
@@ -65,43 +67,47 @@ int main()
 
 // ----------------------------------------------------------------------------
 
-void loadFeatures(vector<vector<vector<float> > > &features)
+void loadFeatures(std::vector<std::vector<std::vector<float> > > &features)
 {
   features.clear();
   features.reserve(NIMAGES);
 
-  cv::Ptr<cv::xfeatures2d::SURF> surf = cv::xfeatures2d::SURF::create(400, 4, 2, EXTENDED_SURF);
-
+#ifdef DBoW2_USE_OPENCV_NONFREE
+  cv::Ptr<cv::Feature2D> extractor = cv::xfeatures2d::SURF::create(400, 4, 2, EXTENDED_SURF);
   cout << "Extracting SURF features..." << endl;
+#else
+  cv::Ptr<cv::Feature2D> extractor = cv::AKAZE::create(cv::AKAZE::DESCRIPTOR_KAZE);
+  cout << "Extracting AKAZE features..." << endl;
+#endif
+
   for(int i = 0; i < NIMAGES; ++i)
   {
     stringstream ss;
     ss << "images/image" << i << ".png";
 
     cv::Mat image = cv::imread(ss.str(), 0);
-    cv::Mat mask;
     vector<cv::KeyPoint> keypoints;
-    vector<float> descriptors;
-
-    surf->detectAndCompute(image, mask, keypoints, descriptors);
-
+    cv::Mat descriptors;
+    extractor->detectAndCompute(image, cv::noArray(), keypoints, descriptors);
     features.push_back(vector<vector<float> >());
-    changeStructure(descriptors, features.back(), surf->descriptorSize());
+    changeStructure(descriptors, features.back());
   }
 }
 
 // ----------------------------------------------------------------------------
 
-void changeStructure(const vector<float> &plain, vector<vector<float> > &out,
-  int L)
+void changeStructure
+(
+  const cv::Mat & plain,
+  std::vector<std::vector<float> > &out
+)
 {
-  out.resize(plain.size() / L);
+  out.resize(plain.rows);
 
-  unsigned int j = 0;
-  for(unsigned int i = 0; i < plain.size(); i += L, ++j)
+  for(int j = 0; j < plain.rows; ++j)
   {
-    out[j].resize(L);
-    std::copy(plain.begin() + i, plain.begin() + i + L, out[j].begin());
+    out[j].resize(plain.cols);
+    std::copy(plain.ptr<float>(j), plain.ptr<float>(j) + plain.cols, out[j].begin());
   }
 }
 
@@ -109,7 +115,7 @@ void changeStructure(const vector<float> &plain, vector<vector<float> > &out,
 
 void testVocCreation(const vector<vector<vector<float> > > &features)
 {
-  // branching factor and depth levels 
+  // branching factor and depth levels
   const int k = 9;
   const int L = 3;
   const WeightingType weight = TF_IDF;
@@ -133,7 +139,7 @@ void testVocCreation(const vector<vector<vector<float> > > &features)
     for(int j = 0; j < NIMAGES; j++)
     {
       voc.transform(features[j], v2);
-      
+
       double score = voc.score(v1, v2);
       cout << "Image " << i << " vs Image " << j << ": " << score << endl;
     }
@@ -153,10 +159,10 @@ void testDatabase(const vector<vector<vector<float> > > &features)
 
   // load the vocabulary from disk
   Surf64Vocabulary voc("small_voc.yml.gz");
-  
+
   Surf64Database db(voc, false, 0); // false = do not use direct index
   // (so ignore the last param)
-  // The direct index is useful if we want to retrieve the features that 
+  // The direct index is useful if we want to retrieve the features that
   // belong to some vocabulary node.
   // db creates a copy of the vocabulary, we may get rid of "voc" now
 
@@ -178,7 +184,7 @@ void testDatabase(const vector<vector<vector<float> > > &features)
   {
     db.query(features[i], ret, 4);
 
-    // ret[0] is always the same image in this case, because we added it to the 
+    // ret[0] is always the same image in this case, because we added it to the
     // database. ret[1] is the second best match.
 
     cout << "Searching for Image " << i << ". " << ret << endl;
@@ -191,8 +197,8 @@ void testDatabase(const vector<vector<vector<float> > > &features)
   cout << "Saving database..." << endl;
   db.save("small_db.yml.gz");
   cout << "... done!" << endl;
-  
-  // once saved, we can load it again  
+
+  // once saved, we can load it again
   cout << "Retrieving database once again..." << endl;
   Surf64Database db2("small_db.yml.gz");
   cout << "... done! This is: " << endl << db2 << endl;
